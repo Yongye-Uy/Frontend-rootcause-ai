@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>RootCause AI</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner" role="status" aria-label="Loading"></div>
+      <div id="loadingMessage" class="loading-message">Thinking…</div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <div class="brand">
+        <h1>RootCause AI</h1>
+        <p>Investigate first. Recommend second.</p>
+      </div>
+      <span id="providerBadge" class="provider-badge d-none"></span>
+    </div>
+
+    <nav id="stepNav" class="step-nav" aria-label="Investigation progress"></nav>
+
+    <div id="errorBanner" class="alert alert-danger d-none" role="alert"></div>
+
+    <main id="app"></main>
+  </div>
+
+  <script src="/static/config.js"></script>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
