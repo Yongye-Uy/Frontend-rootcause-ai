@@ -342,6 +342,7 @@ function renderClarifying() {
           )
           .join("")}
         <button type="submit" class="btn btn-primary">Submit answers</button>
+        <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel Investigation</button>
       </form>
     </div>`;
 
@@ -364,6 +365,7 @@ function renderClarifying() {
       showError(err.message);
     }
   });
+  document.getElementById("cancelBtn").addEventListener("click", resetToIntake);
 }
 
 function renderRootCauseConfirm() {
