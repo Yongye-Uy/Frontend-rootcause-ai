@@ -4,8 +4,7 @@ const CLIENT_ID_KEY = "rootcause_ai_client_id";
 
 const STEPS = [
   { key: "intake", label: "Describe" },
-  { key: "clarifying", label: "Clarify" },
-  { key: "root_cause_confirm", label: "Confirm root cause" },
+  { key: "root_cause_confirm", label: "Clarify & Confirm" },
   { key: "solution_select", label: "Solutions" },
   { key: "done", label: "Plan" },
 ];
@@ -66,7 +65,7 @@ function saveSessionId(id) {
 function clearSessionId() {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function getClientId() {
@@ -208,9 +207,6 @@ function render() {
     case "rejected_health":
       renderHealthRefusal();
       break;
-    case "clarifying":
-      renderClarifying();
-      break;
     case "root_cause_confirm":
       renderRootCauseConfirm();
       break;
@@ -322,53 +318,31 @@ function renderHealthRefusal() {
   document.getElementById("restartBtn").addEventListener("click", resetToIntake);
 }
 
-function renderClarifying() {
+function renderRootCauseConfirm() {
   const unanswered = state.qa_pairs.filter((qa) => qa.answer === null);
   const currentRound = unanswered.length ? unanswered[0].round : null;
 
-  app.innerHTML = `
-    ${qaHistoryHtml()}
-    <div class="card fade-in">
-      <h2 class="card-title">A few questions${currentRound ? ` &middot; round ${currentRound} of ${MAX_CLARIFICATION_ROUNDS}` : ""}</h2>
-      ${state.message ? `<p class="card-subtitle">${escapeHtml(state.message)}</p>` : ""}
+  let questionsFormHtml = "";
+  if (unanswered.length > 0) {
+    questionsFormHtml = `
+      <hr style="margin: var(--space-5) 0; border-color: var(--border-color);" />
+      <h3 class="card-title" style="font-size:1.1rem;">Optional: Help me refine this</h3>
+      <p class="text-muted" style="margin-bottom: var(--space-4);">If the root cause above doesn't seem quite right, answering these questions will help me get a better result.</p>
       <form id="answersForm">
         ${unanswered
-          .map(
-            (qa, i) => `
+        .map(
+          (qa, i) => `
           <div class="field">
             <label>${escapeHtml(qa.question)}</label>
             <input type="text" data-qa-id="${qa.round}-${i}" required />
           </div>`
-          )
-          .join("")}
-        <button type="submit" class="btn btn-primary">Submit answers</button>
-        <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel Investigation</button>
+        )
+        .join("")}
+        <button type="submit" class="btn btn-secondary">Submit Answers</button>
       </form>
-    </div>`;
+    `;
+  }
 
-  document.getElementById("answersForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const inputs = [...document.querySelectorAll("[data-qa-id]")];
-    const answers = inputs.map((el) => el.value.trim());
-    if (answers.some((a) => !a)) {
-      showError("Please answer every question.");
-      return;
-    }
-    try {
-      const data = await apiCall(`${API_BASE}/${state.sessionId}/answers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
-      });
-      applyState(data);
-    } catch (err) {
-      showError(err.message);
-    }
-  });
-  document.getElementById("cancelBtn").addEventListener("click", resetToIntake);
-}
-
-function renderRootCauseConfirm() {
   app.innerHTML = `
     ${qaHistoryHtml()}
     <div class="card fade-in">
@@ -387,6 +361,7 @@ function renderRootCauseConfirm() {
         </div>
         <button id="sendRejection" class="btn btn-danger btn-sm">Send feedback</button>
       </div>
+      ${questionsFormHtml}
     </div>`;
 
   document.getElementById("confirmYes").addEventListener("click", () => submitConfirmation(true));
@@ -397,6 +372,28 @@ function renderRootCauseConfirm() {
     const feedback = document.getElementById("feedbackInput").value.trim();
     submitConfirmation(false, feedback);
   });
+
+  if (unanswered.length > 0) {
+    document.getElementById("answersForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const inputs = [...document.querySelectorAll("[data-qa-id]")];
+      const answers = inputs.map((el) => el.value.trim());
+      if (answers.some((a) => !a)) {
+        showError("Please answer every question.");
+        return;
+      }
+      try {
+        const data = await apiCall(`${API_BASE}/${state.sessionId}/answers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers }),
+        }, "Refining root cause...");
+        applyState(data);
+      } catch (err) {
+        showError(err.message);
+      }
+    });
+  }
 }
 
 async function submitConfirmation(confirmed, feedback) {
