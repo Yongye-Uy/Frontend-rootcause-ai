@@ -1,4 +1,4 @@
-const API_BASE = `${window.API_ORIGIN || ""}/api/sessions`;
+const API_BASE = "https://backend-rootcause-ai.onrender.com/api/sessions";
 const STORAGE_KEY = "rootcause_ai_session_id";
 const CLIENT_ID_KEY = "rootcause_ai_client_id";
 
@@ -23,7 +23,38 @@ let state = {
   plans: [],
   llm_provider_used: null,
   message: null,
+  processing_steps: [],
 };
+
+let pollInterval = null;
+
+function stopPolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+}
+
+function startPolling(sessionId) {
+  stopPolling();
+  pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/${sessionId}`, {
+        headers: { "X-Client-Id": getClientId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        Object.assign(state, data);
+        if (!["clarifying", "researching", "planning"].includes(state.phase)) {
+          stopPolling();
+        }
+        render();
+      }
+    } catch (e) {
+      console.error("Polling error", e);
+    }
+  }, 2500);
+}
 
 const app = document.getElementById("app");
 const errorBanner = document.getElementById("errorBanner");
@@ -210,13 +241,21 @@ function render() {
     case "root_cause_confirm":
       renderRootCauseConfirm();
       break;
+    case "clarifying":
+    case "researching":
+    case "planning":
+      renderProcessing();
+      break;
     case "solution_select":
+      stopPolling();
       renderSolutionSelect();
       break;
     case "done":
+      stopPolling();
       renderPlanDisplay();
       break;
     default:
+      stopPolling();
       renderIntake();
   }
 }
@@ -398,7 +437,7 @@ function renderRootCauseConfirm() {
 
 async function submitConfirmation(confirmed, feedback) {
   const loadingMessage = confirmed
-    ? "Researching real solutions and sources — this can take up to a minute…"
+    ? "Starting research..."
     : "Thinking…";
   try {
     const data = await apiCall(
@@ -476,6 +515,63 @@ function solutionCardHtml(sol) {
         ${btnLabel}
       </button>
     </div>`;
+}
+
+function renderProcessing() {
+  const steps = state.processing_steps || [];
+  
+  const stepsHtml = steps.map((step, i) => {
+    const isLast = i === steps.length - 1;
+    // Show a check for completed steps, and a spinner for the current active step
+    const icon = isLast ? '<div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>' : checkIcon();
+    const style = isLast ? 'color: var(--text-primary); font-weight: 600;' : 'color: var(--text-secondary); opacity: 0.8;';
+    return `
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-left: 3px solid var(--accent-color); margin-bottom: 8px; background: var(--bg-secondary); border-radius: 4px; font-size: 0.95rem; ${style}">
+        <div style="flex: none; display: flex; align-items: center; justify-content: center; width: 24px; color: ${isLast ? 'var(--accent-400)' : 'var(--success)'};">${icon}</div>
+        <span>${escapeHtml(step)}</span>
+      </div>
+    `;
+  }).join("");
+
+  let title = "AI is thinking...";
+  let subtitle = "Please wait while we process your request.";
+  if (state.phase === "clarifying") {
+    title = "AI is analyzing your problem...";
+    subtitle = "Please wait while we formulate the best path forward.";
+  } else if (state.phase === "researching") {
+    title = "AI is researching solutions...";
+    subtitle = "Please wait while we research and find the best solutions for you.";
+  } else if (state.phase === "planning") {
+    title = "AI is generating your plan...";
+    subtitle = "Please wait while we compile a detailed step-by-step implementation plan.";
+  }
+
+  const container = document.getElementById("researchingContainer");
+  if (container) {
+    // Just update the steps and title to prevent the whole page from blinking
+    const stepsList = document.getElementById("processingStepsList");
+    if (stepsList) stepsList.innerHTML = stepsHtml;
+    
+    const titleEl = document.getElementById("processingTitle");
+    if (titleEl) titleEl.textContent = title;
+    const subTitleEl = document.getElementById("processingSubtitle");
+    if (subTitleEl) subTitleEl.textContent = subtitle;
+  } else {
+    app.innerHTML = `
+      <div id="researchingContainer" class="card fade-in text-center" style="padding: 3rem 1rem;">
+        <h2 id="processingTitle" class="card-title">${escapeHtml(title)}</h2>
+        <p id="processingSubtitle" class="text-muted" style="margin-bottom: 2rem;">${escapeHtml(subtitle)}</p>
+        
+        <div id="processingStepsList" style="text-align: left; max-width: 500px; margin: 0 auto;">
+          ${stepsHtml}
+        </div>
+      </div>
+    `;
+  }
+  
+  if (!pollInterval) {
+    startPolling(state.sessionId);
+  }
 }
 
 function renderSolutionSelect() {
@@ -621,6 +717,7 @@ function resetToIntake() {
     plans: [],
     llm_provider_used: null,
     message: null,
+    processing_steps: [],
   };
   clearSessionId();
   clearError();
