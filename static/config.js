@@ -1,6 +1,6 @@
-// Backend origin the frontend talks to.
-// Leave empty ("") for local dev, where FastAPI serves this frontend itself
-// (relative /api/... calls hit the same origin). When the frontend is deployed
-// separately (e.g. on Vercel), set this to the deployed backend's URL, e.g.:
-//   window.API_ORIGIN = "https://rootcause-ai-backend.onrender.com";
-// window.API_ORIGIN = "https://backend-rootcause-ai.onrender.com";
+// Auto-detect environment: use local backend if on localhost, otherwise use the deployed Render backend
+if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+  window.API_ORIGIN = "";
+} else {
+  window.API_ORIGIN = "https://backend-rootcause-ai.onrender.com";
+}
